@@ -5,67 +5,77 @@
 /*                                                    +:+ +:+         +:+     */
 /*   By: hhuhtane <marvin@42.fr>                    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2019/11/06 10:23:12 by hhuhtane          #+#    #+#             */
-/*   Updated: 2019/11/06 17:14:10 by hhuhtane         ###   ########.fr       */
+/*   Created: 2019/11/21 18:12:13 by hhuhtane          #+#    #+#             */
+/*   Updated: 2019/11/22 10:32:45 by hhuhtane         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "get_next_line.h"
 
-#include <fcntl.h> // poista valmiista, openin kirjasto
-
-char	*ft_realloc(char *str, size_t size)
+static int		ft_read_fd(const int fd, char **str)
 {
-	char		*str2;
-	size_t		len;
+	int		rt;
+	char	buff[BUFF_SIZE + 1];
+	char	*str_temp;
 
-	len = ft_strlen(str);
-	if (!(str2 = ft_memalloc(size)))
-		return (NULL);
-	ft_strncpy(str2, str, len);
-	return (str2);
-}
-
-int		get_next_line(const int fd, char **line)
-{
-	char		*str;
-	char		*str2;
-	size_t		size;
-	size_t		i;
-
-	size = 0;
-	if (!(str = (char*)malloc(sizeof(char) * (BUFF_SIZE + 1))))
-		return (-1);
-	while (read(fd, str[i], 1) && str[i] != '\n')
+	rt = 0;
+	if (!str[fd] && (rt = read(fd, buff, BUFF_SIZE)))
 	{
-		i++;
-		size++;
-		if (size == BUFF_SIZE)
-		{
-			str[size] = '\0';
-			size++;
-			str2 = ft_realloc(str, size + ft_strlen(str2));
-			str2 = ft_strncat(str2, str, size + ft_strlen(str2));
-			size = 0;
-		}
-		str[size] = '\0';
+		if (rt == -1)
+			return (rt);
+		buff[rt] = '\0';
+		str[fd] = ft_strdup(buff);
 	}
-	return (fd);
+	if (rt == 0 && !str[fd])
+		return (0);
+	while (!ft_strchr(str[fd], '\n') && (rt = read(fd, buff, BUFF_SIZE)))
+	{
+		if (rt == -1)
+			return (rt);
+		buff[rt] = '\0';
+		str_temp = ft_strjoin(str[fd], buff);
+		ft_strdel(&str[fd]);
+		str[fd] = str_temp;
+	}
+	return (rt);
 }
 
-int		main(int argc, char **argv)
+static int		ft_crop_to_line(const int fd, int rt, char **str, char **line)
 {
-	int			fd;
-	int			ret;
-	char		*str;
+	char	*ptr_t;
 
-	argc = 0;
-
-	fd = open(argv[1], O_RDONLY);
-	str = &fd;
-	while (ret = get_next_line(fd, &str))
+	if (rt == 0 && str[fd] && str[fd][0] == '\0')
 	{
-		ft_putendl(ret);
+		*line = ft_strdup(str[fd]);
+		ft_strdel(&str[fd]);
+		return (0);
+	}
+	if (rt == 0 && str[fd] && !ft_strchr(str[fd], '\n'))
+	{
+		*line = ft_strdup(str[fd]);
+		str[fd][0] = '\0';
+		return (1);
+	}
+	if (str[fd] && ft_strchr(str[fd], '\n'))
+	{
+		*line = ft_strsub(str[fd], 0, (ft_strchr(str[fd], '\n') - str[fd]));
+		ptr_t = str[fd];
+		str[fd] = ft_strdup(ft_strchr(str[fd], '\n') + 1);
+		ft_strdel(&ptr_t);
+		return (1);
 	}
 	return (0);
+}
+
+int				get_next_line(const int fd, char **line)
+{
+	static char		*str[MAX_FD];
+	int				rt;
+
+	if (fd < 0 || fd > MAX_FD || BUFF_SIZE < 1 || !line)
+		return (-1);
+	rt = ft_read_fd(fd, str);
+	if (rt == -1)
+		return (-1);
+	return (ft_crop_to_line(fd, rt, str, line));
 }
